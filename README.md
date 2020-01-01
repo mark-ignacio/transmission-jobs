@@ -1,5 +1,8 @@
 # transmission-jobs
 
+[![Workflow](https://github.com/mark-ignacio/transmission-jobs/workflows/Go/badge.svg)](https://github.com/mark-ignacio/transmission-jobs/workflows/Go)
+[![GoDoc](https://godoc.org/github.com/mark-ignacio/transmission-jobs?status.svg)](https://godoc.org/github.com/mark-ignacio/transmission-jobs)
+
 **transmission-jobs** is a job runner for Transmission RPC calls that supports torrent condition evaluation.
 
 Runs every 5 minutes by default.
