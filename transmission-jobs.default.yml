@@ -1,0 +1,11 @@
+transmission:
+  host: http://localhost:9091
+  username: rpcuser
+  password: rpcpass
+
+# jobs: 
+#   - name: some optional name
+#     remove:
+#       condition: Torrent.Status.String() == "seeding" && Torrent.UploadRatio >= 10.0
+#       delete_local: true
+jobs: []
