@@ -83,10 +83,13 @@ type TransmissionTorrent struct {
 	Wanted []bool
 	WebSeeds []string
 	WebSeedsSendingToUs int64
+
+	// for internal use
+	sonarrImportPaths map[string]bool
 }
 
 // ToTransmissionTorrent converts the library struct to our generated struct.
-func ToTransmissionTorrent(input transmissionrpc.Torrent) TransmissionTorrent {
+func ToTransmissionTorrent(input transmissionrpc.Torrent, sonarrImportPaths map[string]bool) TransmissionTorrent {
 	return TransmissionTorrent{
 		ActivityDate: *input.ActivityDate,
 		AddedDate: *input.AddedDate,
@@ -156,5 +159,6 @@ func ToTransmissionTorrent(input transmissionrpc.Torrent) TransmissionTorrent {
 		Wanted: input.Wanted,
 		WebSeeds: input.WebSeeds,
 		WebSeedsSendingToUs: *input.WebSeedsSendingToUs,
+		sonarrImportPaths: sonarrImportPaths,
 	}
 }

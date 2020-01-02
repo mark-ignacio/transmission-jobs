@@ -1,21 +1,19 @@
 package jobs
 
-import (
-	"fmt"
-	"net/url"
-	"strconv"
-	"strings"
-
-	"github.com/hekmon/transmissionrpc"
-)
-
 // Config describes the schema of the .yml config file
 type Config struct {
 	Transmission TransmissionSettings
+	Sonarr       *SonarrSettings
 	Jobs         []JobConfig
 }
 
-// TransmissionSettings describes how to connect to a Transmission RPC endpoint.
+// SonarrSettings describes how to connect to a Sonarr server.
+type SonarrSettings struct {
+	Host   string
+	APIKey string `mapstructure:"api_key"`
+}
+
+// TransmissionSettings describes how to connect to a Transmission RPC server.
 type TransmissionSettings struct {
 	Host     string
 	Username string
@@ -32,26 +30,4 @@ type JobConfig struct {
 type RemoveOptions struct {
 	DeleteLocal bool `mapstructure:"delete_local"`
 	Condition   string
-}
-
-// ConnectToRemote creates an *transmissionrpc.Client.
-func ConnectToRemote(settings TransmissionSettings) (*transmissionrpc.Client, error) {
-	uri, err := url.Parse(settings.Host)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing Host: %+v", err)
-	}
-	port, err := strconv.ParseUint(uri.Port(), 10, 16)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing port as uint16: %+v", err)
-	}
-	advancedConfig := &transmissionrpc.AdvancedConfig{
-		Port:  uint16(port),
-		HTTPS: (strings.ToLower(uri.Scheme) == "https"),
-	}
-	return transmissionrpc.New(
-		uri.Hostname(),
-		settings.Username,
-		settings.Password,
-		advancedConfig,
-	)
 }

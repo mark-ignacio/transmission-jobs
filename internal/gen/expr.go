@@ -29,14 +29,18 @@ type TransmissionTorrent struct {
 	{{- range .Props }}
 	{{ .FieldName }} {{.FieldType }}
 	{{- end }}
+
+	// for internal use
+	sonarrDropPaths map[string]bool
 }
 
 // ToTransmissionTorrent converts the library struct to our generated struct.
-func ToTransmissionTorrent(input transmissionrpc.Torrent) TransmissionTorrent {
+func ToTransmissionTorrent(input transmissionrpc.Torrent, sonarrDropPaths map[string]bool) TransmissionTorrent {
 	return TransmissionTorrent{
 		{{- range .Props }}
 		{{ .FieldName }}: {{ if .Dereference }}*{{ end }}input.{{ .FieldName }},
 		{{- end }}
+		sonarrDropPaths: sonarrDropPaths,
 	}
 }
 `))

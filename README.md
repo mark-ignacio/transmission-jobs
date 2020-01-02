@@ -11,7 +11,7 @@ Runs every 5 minutes by default.
 
 * [x] Condition evaluation
 * [ ] Ephemeral tag system (via a job?)
-* [ ] Sonarr [EpisodeFile](https://github.com/Sonarr/Sonarr/wiki/EpisodeFile) integration
+* [x] Sonarr [History](https://github.com/Sonarr/Sonarr/wiki/History) integration
 * Actions
   * [x] Remove (and delete local data)
 

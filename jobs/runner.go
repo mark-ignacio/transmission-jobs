@@ -19,6 +19,7 @@ type Runner struct {
 	DryRun             bool
 	Verbose            bool
 	client             *transmissionrpc.Client
+	sonarrDropPaths    map[string]bool
 	allTorrents        []TransmissionTorrent
 	compiledConditions []*vm.Program
 }
@@ -32,6 +33,12 @@ func (r *Runner) Run(ctx context.Context) (err error) {
 	r.client, err = ConnectToRemote(r.Config.Transmission)
 	if err != nil {
 		return
+	}
+	if r.Config.Sonarr != nil {
+		r.sonarrDropPaths, err = FetchSonarrDrops(*r.Config.Sonarr, 1000)
+		if err != nil {
+			return
+		}
 	}
 	if r.DryRun {
 		log.Println("[*] Dry run mode - no changes will be made")
@@ -56,7 +63,7 @@ func (r *Runner) do(job JobConfig) error {
 	}
 	r.allTorrents = make([]TransmissionTorrent, len(allTorrents))
 	for i := range allTorrents {
-		r.allTorrents[i] = ToTransmissionTorrent(*allTorrents[i])
+		r.allTorrents[i] = ToTransmissionTorrent(*allTorrents[i], r.sonarrDropPaths)
 	}
 	if job.RemoveOptions != nil {
 		err = r.remove(job)
