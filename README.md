@@ -15,7 +15,7 @@ Runs every 5 minutes by default.
 * Actions
   * [x] Remove (and delete local data)
 
-## Writing conditions
+### Conditions
 
 Conditions use <https://github.com/antonmedv/expr/> as the boolean expression engine. All conditions are validated before jobs are run, so you should get informative error messages before bad things happen on runtime.
 
@@ -49,3 +49,18 @@ exit status 1
 ```
 
 See the expr [Language Definition](https://github.com/antonmedv/expr/blob/master/docs/Language-Definition.md) for details.
+
+### Sonarr import status
+
+Optionally specifying Sonarr connection information allows calling [`Torrent.Imported()`](https://godoc.org/github.com/mark-ignacio/transmission-jobs/jobs#TransmissionTorrent.Imported) inside of conditions:
+
+```yaml
+sonarr:
+  host: https://localhost:8989
+  api_key: deadbeef
+jobs:
+  - name: delete imported + seeding + ratio > 10
+    remove:
+      condition: Torrent.Imported() && Torrent.Status.String() == "seeding" && Torrent.UploadRatio >= 10.0
+      delete_local: true
+```

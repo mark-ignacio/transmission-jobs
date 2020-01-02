@@ -1,7 +1,10 @@
 transmission:
   host: http://localhost:9091
   username: rpcuser
-  password: rpcpass
+  password: rpcpass 
+# sonarr:
+#   host: https://localhost:8989
+#   api_key: f00
 
 # jobs: 
 #   - name: some optional name
