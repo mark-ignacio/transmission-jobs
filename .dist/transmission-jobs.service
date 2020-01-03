@@ -1,0 +1,7 @@
+[Unit]
+Description=transmission job runner service
+
+[Service]
+ExecStart=/bin/transmission-jobs
+User=transmission-jobs
+Group=transmission-jobs

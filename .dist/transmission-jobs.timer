@@ -1,0 +1,10 @@
+[Unit]
+Description=transmission job runner timer
+
+[Timer]
+OnUnitInactiveSec=15min
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=network-online.target
