@@ -1,6 +1,8 @@
 package jobs
 
 import (
+	"log"
+	"net/url"
 	"path"
 
 	"github.com/antonmedv/expr"
@@ -16,7 +18,7 @@ type torrentConditionInput struct {
 
 // Imported returns whether all downloaded files were imported
 func (t TransmissionTorrent) Imported() bool {
-	if t.sonarrImportPaths == nil {
+	if t.sonarrDropPaths == nil {
 		panic("runtime error: unable to use Imported() without loading imported file paths")
 	}
 	if len(t.Files) == 0 {
@@ -27,12 +29,28 @@ func (t TransmissionTorrent) Imported() bool {
 			t.DownloadDir,
 			fileData.Name,
 		)
-		_, exists := t.sonarrImportPaths[filePath]
+		_, exists := t.sonarrDropPaths[filePath]
 		if !exists {
 			return false
 		}
 	}
 	return true
+}
+
+// AnnounceHostnames returns a list of tracker announce URL hostnames.
+func (t TransmissionTorrent) AnnounceHostnames() (hostnames []string) {
+	if len(t.Trackers) == 0 {
+		return
+	}
+	for _, tracker := range t.Trackers {
+		trackerURL, err := url.Parse(tracker.Announce)
+		if err != nil {
+			log.Printf("could not parse announce URL '%s' as a URL: %+v", tracker.Announce, err)
+			continue
+		}
+		hostnames = append(hostnames, trackerURL.Hostname())
+	}
+	return
 }
 
 func init() {
