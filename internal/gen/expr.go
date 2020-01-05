@@ -1,7 +1,9 @@
 package main
 
 import (
-	"os"
+	"bytes"
+	"go/format"
+	"io/ioutil"
 	"reflect"
 	"strings"
 	"text/template"
@@ -74,11 +76,17 @@ func main() {
 			Dereference: dereferenceRequired,
 		}
 	}
-	outFile, err := os.Create("jobs/expr_gen.go")
+	// format + save
+	toFormat := &bytes.Buffer{}
+	err := exprGenTemplate.Execute(toFormat, exprGenInput{props})
 	if err != nil {
 		panic(err)
 	}
-	err = exprGenTemplate.Execute(outFile, exprGenInput{props})
+	formatted, err := format.Source(toFormat.Bytes())
+	if err != nil {
+		panic(err)
+	}
+	err = ioutil.WriteFile("jobs/expr_gen.go", formatted, 0644)
 	if err != nil {
 		panic(err)
 	}
