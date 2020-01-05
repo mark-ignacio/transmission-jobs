@@ -20,7 +20,7 @@ type Runner struct {
 	Verbose            bool
 	client             *transmissionrpc.Client
 	sonarrDropPaths    map[string]bool
-	allTorrents        []TransmissionTorrent
+	allTorrents        []*TransmissionTorrent
 	compiledConditions []*vm.Program
 }
 
@@ -43,6 +43,11 @@ func (r *Runner) Run(ctx context.Context) (err error) {
 	if r.DryRun {
 		log.Println("[*] Dry run mode - no changes will be made")
 	}
+	// load it up!
+	err = r.fetchAllTorrents()
+	if err != nil {
+		return fmt.Errorf("could not perform initial fetch of all torrents: %+v", err)
+	}
 	for _, jobConfig := range r.Config.Jobs {
 		log.Printf("[*] Running job: %s", jobConfig.Name)
 		err = r.do(jobConfig)
@@ -54,6 +59,21 @@ func (r *Runner) Run(ctx context.Context) (err error) {
 }
 
 func (r *Runner) do(job JobConfig) error {
+	var err error
+	if job.RemoveOptions != nil {
+		if err = r.fetchAllTorrents(); err != nil {
+			return err
+		}
+		err = r.remove(job)
+	} else if job.TagOptions != nil {
+		err = r.tag(job)
+	} else {
+		err = fmt.Errorf("invalid job spec for %s", job.Name)
+	}
+	return err
+}
+
+func (r *Runner) fetchAllTorrents() error {
 	if r.Verbose {
 		log.Println("[*] Getting all torrents...")
 	}
@@ -61,14 +81,10 @@ func (r *Runner) do(job JobConfig) error {
 	if err != nil {
 		return fmt.Errorf("error getting all torrents: %+v", err)
 	}
-	r.allTorrents = make([]TransmissionTorrent, len(allTorrents))
+	r.allTorrents = make([]*TransmissionTorrent, len(allTorrents))
 	for i := range allTorrents {
-		r.allTorrents[i] = ToTransmissionTorrent(*allTorrents[i], r.sonarrDropPaths)
-	}
-	if job.RemoveOptions != nil {
-		err = r.remove(job)
-	} else {
-
+		torrent := ToTransmissionTorrent(*allTorrents[i], r.sonarrDropPaths)
+		r.allTorrents[i] = &torrent
 	}
 	return nil
 }
@@ -90,7 +106,12 @@ func (r *Runner) validateJob(index int, job JobConfig) error {
 	if program != nil {
 		return nil
 	}
-	conditionStr := job.RemoveOptions.Condition
+	var conditionStr string
+	if job.RemoveOptions != nil {
+		conditionStr = job.RemoveOptions.Condition
+	} else if job.TagOptions != nil {
+		conditionStr = job.TagOptions.Condition
+	}
 	program, err := expr.Compile(conditionStr, torrentExprEnv)
 	if err != nil {
 		return fmt.Errorf("error compiling condition '%s':\n%+v", conditionStr, err)
@@ -112,7 +133,7 @@ func (r *Runner) remove(job JobConfig) error {
 	}
 	removeIDs := []int64{}
 	for _, torrent := range r.allTorrents {
-		output, err := expr.Run(conditionProgram, &torrentConditionInput{torrent})
+		output, err := expr.Run(conditionProgram, &torrentConditionInput{*torrent})
 		if err != nil {
 			return fmt.Errorf("error evaluting condition '%s':\n:%+v", conditionStr, err)
 		}
@@ -137,6 +158,33 @@ func (r *Runner) remove(job JobConfig) error {
 			log.Printf("[*] removing IDs: %v", removeIDs)
 		}
 		return r.client.TorrentRemove(payload)
+	}
+	return nil
+}
+
+func (r *Runner) tag(job JobConfig) error {
+	// validate condition
+	if job.TagOptions == nil || job.TagOptions.Condition == "" {
+		return errors.New("job has invalid RemoveOptions")
+	}
+	conditionStr := job.TagOptions.Condition
+	conditionProgram, err := expr.Compile(conditionStr, torrentExprEnv)
+	if err != nil {
+		return fmt.Errorf("error compiling condition '%s':\n%+v", conditionStr, err)
+	}
+	for i, torrent := range r.allTorrents {
+		output, err := expr.Run(conditionProgram, &torrentConditionInput{*torrent})
+		if err != nil {
+			return fmt.Errorf("error evaluting condition '%s':\n:%+v", conditionStr, err)
+		}
+		if output.(bool) {
+			// tags don't mutate state, so no dry run necessary
+			tagName := job.TagOptions.Name
+			if r.Verbose {
+				log.Printf("[*] Tagging %s with '%s'", torrent.Name, tagName)
+			}
+			r.allTorrents[i].Tags = append(r.allTorrents[i].Tags, tagName)
+		}
 	}
 	return nil
 }

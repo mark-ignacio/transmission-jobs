@@ -34,6 +34,7 @@ type TransmissionTorrent struct {
 
 	// for internal use
 	sonarrDropPaths map[string]bool
+	Tags []string
 }
 
 // ToTransmissionTorrent converts the library struct to our generated struct.

@@ -24,10 +24,17 @@ type TransmissionSettings struct {
 type JobConfig struct {
 	Name          string
 	RemoveOptions *RemoveOptions `mapstructure:"remove"`
+	TagOptions    *TagOptions    `mapstructure:"tag"`
 }
 
 // RemoveOptions describes when and how to remove a torrent.
 type RemoveOptions struct {
 	DeleteLocal bool `mapstructure:"delete_local"`
 	Condition   string
+}
+
+// TagOptions describes when and how to tag a torrent.
+type TagOptions struct {
+	Name      string
+	Condition string
 }

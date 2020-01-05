@@ -10,9 +10,9 @@ Runs every 5 minutes by default.
 ## Features
 
 * [x] Condition evaluation
-* [ ] Ephemeral tag system (via a job?)
+* [x] Ephemeral tag system via jobs
 * [x] Sonarr [History](https://github.com/Sonarr/Sonarr/wiki/History) integration
-* Actions
+* [x] Actions
   * [x] Remove (and delete local data)
 
 ### Conditions
@@ -23,9 +23,14 @@ Conditions have a `Torrent` variable, which is the [TransmissionTorrent](https:/
 
 ```yaml
 jobs:
-  - name: delete seeding where ratio > 10
+- name: tag Fedora, Debian trackers as linux
+  tag:
+    name: linux
+    condition: |-
+      any(Torrent.AnnounceHostnames(), {# in ["torrrent.fedoraproject.org", "bttracker.debian.org"]})
+  - name: delete non-linux + seeding where ratio > 10
     remove:
-      condition: Torrent.Status.String() == "seeding" && Torrent.UploadRatio >= 10.0
+      condition: "linux" not in Torrent.Tags && Torrent.Status.String() == "seeding" && Torrent.UploadRatio >= 10.0
       delete_local: true
 ```
 
