@@ -27,7 +27,7 @@ jobs:
   tag:
     name: linux
     condition: |-
-      any(Torrent.AnnounceHostnames(), {# in ["torrrent.fedoraproject.org", "bttracker.debian.org"]})
+      any(Torrent.AnnounceHostnames(), {# in ["torrent.fedoraproject.org", "bttracker.debian.org"]})
   - name: delete non-linux + seeding where ratio > 10
     remove:
       condition: "linux" not in Torrent.Tags && Torrent.Status.String() == "seeding" && Torrent.UploadRatio >= 10.0
