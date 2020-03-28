@@ -1,7 +1,6 @@
 NOWISH := $(shell date +%s)
 
-.PHONY: build deb
-
+.PHONY: build
 build:
 	rm -rf .build
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o transmission-jobs .
@@ -11,6 +10,7 @@ build:
 	install -D -m 644 .dist/transmission-jobs.timer .build/usr/lib/systemd/system/transmission-jobs.timer
 	install -D -m 600 transmission-jobs.default.yml .build/etc/transmission-jobs.yml
 
+.PHONY: deb
 deb: build
 	rm -f *.deb
 	fpm -s dir \
