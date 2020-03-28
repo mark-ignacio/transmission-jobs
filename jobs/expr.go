@@ -56,3 +56,11 @@ func (t TransmissionTorrent) AnnounceHostnames() (hostnames []string) {
 func init() {
 	torrentExprEnv = expr.Env(&torrentConditionInput{})
 }
+
+// MarshalMap exists for general storage.
+func (t TransmissionTorrent) MarshalMap() map[string]interface{} {
+	return map[string]interface{}{
+		"ID":   t.ID,
+		"Tags": t.Tags,
+	}
+}

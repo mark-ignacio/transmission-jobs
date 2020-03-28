@@ -2,15 +2,22 @@
 package jobs
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"log"
 
 	"github.com/antonmedv/expr"
 	"github.com/antonmedv/expr/vm"
-
 	"github.com/hekmon/transmissionrpc"
+	"go.etcd.io/bbolt"
+)
+
+var (
+	tagBucket = []byte("tags")
 )
 
 // Runner is what actually runs all of the jobs
@@ -19,6 +26,7 @@ type Runner struct {
 	DryRun             bool
 	Verbose            bool
 	client             *transmissionrpc.Client
+	db                 *bbolt.DB
 	sonarrDropPaths    map[string]bool
 	allTorrents        []*TransmissionTorrent
 	compiledConditions []*vm.Program
@@ -26,6 +34,19 @@ type Runner struct {
 
 // Run runs the runner's configured jobs
 func (r *Runner) Run(ctx context.Context) (err error) {
+	// pop open the database
+	if r.Config.DatabasePath != "" {
+		r.db, err = bbolt.Open(r.Config.DatabasePath, 0600, nil)
+		if err != nil {
+			return
+		}
+		err = r.createBuckets()
+		if err != nil {
+			return
+		}
+		log.Printf("[*] Using database @ %s", r.Config.DatabasePath)
+		defer r.db.Close()
+	}
 	// validate jobs before we do any network stuff
 	if err = r.validateJobs(); err != nil {
 		return
@@ -53,6 +74,13 @@ func (r *Runner) Run(ctx context.Context) (err error) {
 		err = r.do(jobConfig)
 		if err != nil {
 			return fmt.Errorf("error running job '%s': %+v", jobConfig.Name, err)
+		}
+	}
+	// store torrent data
+	for _, torrent := range r.allTorrents {
+		err = r.storeTorrent(torrent)
+		if err != nil {
+			return fmt.Errorf("error returning: %+v", err)
 		}
 	}
 	return
@@ -117,6 +145,7 @@ func (r *Runner) validateJob(index int, job JobConfig) error {
 		return fmt.Errorf("error compiling condition '%s':\n%+v", conditionStr, err)
 	}
 	r.compiledConditions[index] = program
+
 	return nil
 }
 
@@ -187,4 +216,30 @@ func (r *Runner) tag(job JobConfig) error {
 		}
 	}
 	return nil
+}
+
+func (r *Runner) createBuckets() error {
+	return r.db.Update(func(tx *bbolt.Tx) error {
+		for _, name := range [][]byte{tagBucket} {
+			_, err := tx.CreateBucketIfNotExists(name)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (r *Runner) storeTorrent(torrent *TransmissionTorrent) error {
+	key := make([]byte, 8)
+	binary.PutVarint(key, torrent.ID)
+	return r.db.Update(func(tx *bbolt.Tx) error {
+		var (
+			bucket = tx.Bucket(tagBucket)
+			buf    = &bytes.Buffer{}
+			enc    = gob.NewEncoder(buf)
+		)
+		enc.Encode(torrent.MarshalMap())
+		return bucket.Put(key, buf.Bytes())
+	})
 }

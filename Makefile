@@ -5,6 +5,7 @@ NOWISH := $(shell date +%s)
 build:
 	rm -rf .build
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o transmission-jobs .
+	install -d -m 755 .build/var/lib/transmission-jobs/
 	install -D -m 755 transmission-jobs .build/bin/transmission-jobs && rm transmission-jobs
 	install -D -m 644 .dist/transmission-jobs.service .build/usr/lib/systemd/system/transmission-jobs.service
 	install -D -m 644 .dist/transmission-jobs.timer .build/usr/lib/systemd/system/transmission-jobs.timer

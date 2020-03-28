@@ -10,7 +10,7 @@ Runs every 5 minutes by default.
 ## Features
 
 * [x] Condition evaluation
-* [x] Ephemeral tag system via jobs
+* [x] Tag system via jobs
 * [x] Sonarr [History](https://github.com/Sonarr/Sonarr/wiki/History) integration
 * [x] Actions
   * [x] Remove (and delete local data)
@@ -54,6 +54,13 @@ exit status 1
 ```
 
 See the expr [Language Definition](https://github.com/antonmedv/expr/blob/master/docs/Language-Definition.md) for details.
+
+### Stateful storage
+
+If `database` is configured, transmission-jobs changes its default stateless behavior to stateful. Other sections go into detail about what this means, but the affected job types are:
+
+* `tag` - tags are stored when evaluated, which is generally useless
+* TK: RSS/Atom feeds
 
 ### Sonarr import status
 
