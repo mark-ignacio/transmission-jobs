@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	tagBucket = []byte("tags")
+	torrentsBucket = []byte("torrents")
 )
 
 // Runner is what actually runs all of the jobs
@@ -28,7 +28,7 @@ type Runner struct {
 	client             *transmissionrpc.Client
 	db                 *bbolt.DB
 	sonarrDropPaths    map[string]bool
-	allTorrents        []*TransmissionTorrent
+	allTorrents        map[int64]*TransmissionTorrent
 	compiledConditions []*vm.Program
 }
 
@@ -68,6 +68,10 @@ func (r *Runner) Run(ctx context.Context) (err error) {
 	err = r.fetchAllTorrents()
 	if err != nil {
 		return fmt.Errorf("could not perform initial fetch of all torrents: %+v", err)
+	}
+	err = r.loadTorrentStates()
+	if err != nil {
+		return fmt.Errorf("error loading saved torrent states: %+v", err)
 	}
 	for _, jobConfig := range r.Config.Jobs {
 		log.Printf("[*] Running job: %s", jobConfig.Name)
@@ -109,10 +113,10 @@ func (r *Runner) fetchAllTorrents() error {
 	if err != nil {
 		return fmt.Errorf("error getting all torrents: %+v", err)
 	}
-	r.allTorrents = make([]*TransmissionTorrent, len(allTorrents))
+	r.allTorrents = make(map[int64]*TransmissionTorrent, len(allTorrents))
 	for i := range allTorrents {
 		torrent := ToTransmissionTorrent(*allTorrents[i], r.sonarrDropPaths)
-		r.allTorrents[i] = &torrent
+		r.allTorrents[torrent.ID] = &torrent
 	}
 	return nil
 }
@@ -220,7 +224,7 @@ func (r *Runner) tag(job JobConfig) error {
 
 func (r *Runner) createBuckets() error {
 	return r.db.Update(func(tx *bbolt.Tx) error {
-		for _, name := range [][]byte{tagBucket} {
+		for _, name := range [][]byte{torrentsBucket} {
 			_, err := tx.CreateBucketIfNotExists(name)
 			if err != nil {
 				return err
@@ -235,11 +239,37 @@ func (r *Runner) storeTorrent(torrent *TransmissionTorrent) error {
 	binary.PutVarint(key, torrent.ID)
 	return r.db.Update(func(tx *bbolt.Tx) error {
 		var (
-			bucket = tx.Bucket(tagBucket)
+			bucket = tx.Bucket(torrentsBucket)
 			buf    = &bytes.Buffer{}
 			enc    = gob.NewEncoder(buf)
 		)
 		enc.Encode(torrent.MarshalMap())
 		return bucket.Put(key, buf.Bytes())
+	})
+}
+
+func (r *Runner) loadTorrentStates() error {
+	return r.db.View(func(tx *bbolt.Tx) error {
+		var (
+			bucket = tx.Bucket(torrentsBucket)
+			cursor = bucket.Cursor()
+		)
+		for key, value := cursor.First(); key != nil; key, value = cursor.Next() {
+			torrentID, err := binary.ReadVarint(bytes.NewBuffer(key))
+			if err != nil {
+				return err
+			}
+			var data map[string]interface{}
+			err = gob.NewDecoder(bytes.NewBuffer(value)).Decode(&data)
+			if err != nil {
+				return nil
+			}
+			torrent := r.allTorrents[torrentID]
+			err = torrent.UnmarshalMap(data)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }

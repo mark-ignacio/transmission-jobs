@@ -64,3 +64,9 @@ func (t TransmissionTorrent) MarshalMap() map[string]interface{} {
 		"Tags": t.Tags,
 	}
 }
+
+// UnmarshalMap does the opposite of MarshalMap
+func (t *TransmissionTorrent) UnmarshalMap(data map[string]interface{}) error {
+	t.Tags = data["Tags"].([]string)
+	return nil
+}
