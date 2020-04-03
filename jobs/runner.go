@@ -67,9 +67,11 @@ func (r *Runner) Run(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("could not perform initial fetch of all torrents: %+v", err)
 	}
-	err = r.loadTorrentStates()
-	if err != nil {
-		return fmt.Errorf("error loading saved torrent states: %+v", err)
+	if r.db != nil {
+		err = r.loadTorrentStates()
+		if err != nil {
+			return fmt.Errorf("error loading saved torrent states: %+v", err)
+		}
 	}
 	for _, jobConfig := range r.Config.Jobs {
 		log.Printf("[*] Running job: %s", jobConfig.Name)
