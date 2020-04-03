@@ -2,21 +2,21 @@
 package jobs
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
-	"encoding/gob"
 	"errors"
 	"fmt"
 	"log"
 
+	"github.com/timshannon/bolthold"
+
 	"github.com/antonmedv/expr"
 	"github.com/antonmedv/expr/vm"
 	"github.com/hekmon/transmissionrpc"
-	"go.etcd.io/bbolt"
+	"github.com/mmcdole/gofeed"
 )
 
 var (
+	feedGUIDBucket = []byte("feedGUIDs")
 	torrentsBucket = []byte("torrents")
 )
 
@@ -26,27 +26,25 @@ type Runner struct {
 	DryRun             bool
 	Verbose            bool
 	client             *transmissionrpc.Client
-	db                 *bbolt.DB
+	db                 *bolthold.Store
 	sonarrDropPaths    map[string]bool
 	allTorrents        map[int64]*TransmissionTorrent
 	compiledConditions []*vm.Program
+	feedCache          map[string]*gofeed.Feed
 }
 
 // Run runs the runner's configured jobs
 func (r *Runner) Run(ctx context.Context) (err error) {
 	// pop open the database
 	if r.Config.DatabasePath != "" {
-		r.db, err = bbolt.Open(r.Config.DatabasePath, 0600, nil)
-		if err != nil {
-			return
-		}
-		err = r.createBuckets()
+		r.db, err = bolthold.Open(r.Config.DatabasePath, 0600, nil)
 		if err != nil {
 			return
 		}
 		log.Printf("[*] Using database @ %s", r.Config.DatabasePath)
 		defer r.db.Close()
 	}
+	r.feedCache = make(map[string]*gofeed.Feed)
 	// validate jobs before we do any network stuff
 	if err = r.validateJobs(); err != nil {
 		return
@@ -84,7 +82,7 @@ func (r *Runner) Run(ctx context.Context) (err error) {
 	for _, torrent := range r.allTorrents {
 		err = r.storeTorrent(torrent)
 		if err != nil {
-			return fmt.Errorf("error returning: %+v", err)
+			return fmt.Errorf("error storing torrent: %+v", err)
 		}
 	}
 	return
@@ -93,12 +91,11 @@ func (r *Runner) Run(ctx context.Context) (err error) {
 func (r *Runner) do(job JobConfig) error {
 	var err error
 	if job.RemoveOptions != nil {
-		if err = r.fetchAllTorrents(); err != nil {
-			return err
-		}
 		err = r.remove(job)
 	} else if job.TagOptions != nil {
 		err = r.tag(job)
+	} else if job.FeedOptions != nil {
+		err = r.feed(job)
 	} else {
 		err = fmt.Errorf("invalid job spec for %s", job.Name)
 	}
@@ -143,13 +140,14 @@ func (r *Runner) validateJob(index int, job JobConfig) error {
 		conditionStr = job.RemoveOptions.Condition
 	} else if job.TagOptions != nil {
 		conditionStr = job.TagOptions.Condition
+	} else if job.FeedOptions != nil {
+		return job.FeedOptions.Validate()
 	}
 	program, err := expr.Compile(conditionStr, torrentExprEnv)
 	if err != nil {
 		return fmt.Errorf("error compiling condition '%s':\n%+v", conditionStr, err)
 	}
 	r.compiledConditions[index] = program
-
 	return nil
 }
 
@@ -190,7 +188,28 @@ func (r *Runner) remove(job JobConfig) error {
 		if r.Verbose {
 			log.Printf("[*] removing IDs: %v", removeIDs)
 		}
-		return r.client.TorrentRemove(payload)
+		err := r.client.TorrentRemove(payload)
+		if err != nil {
+			return err
+		}
+		for _, id := range removeIDs {
+			storedInfo := r.allTorrents[id].StoredTorrentInfo
+			storedInfo.Removed = true
+			if storedInfo.SafeToPrune() {
+				if r.DryRun {
+					log.Printf("DRY RUN: would prune info")
+				} else if err := r.db.Delete(id, storedInfo); err != nil {
+					return fmt.Errorf("error deleting stored torrent info for ID %d: %+v", id, err)
+				}
+			} else {
+				if r.DryRun {
+					log.Printf("DRY RUN: would not prune info")
+				} else if err = r.db.Update(storedInfo.ID, storedInfo); err != nil {
+					return fmt.Errorf("error saving storted torrent info for ID %d: %+v", id, err)
+				}
+			}
+			delete(r.allTorrents, id)
+		}
 	}
 	return nil
 }
@@ -216,60 +235,99 @@ func (r *Runner) tag(job JobConfig) error {
 			if r.Verbose {
 				log.Printf("[*] Tagging %s with '%s'", torrent.Name, tagName)
 			}
-			r.allTorrents[i].Tags = append(r.allTorrents[i].Tags, tagName)
+			stored := r.allTorrents[i].GetOrCreateStored()
+			r.allTorrents[i].Tags = append(stored.Tags, tagName)
 		}
 	}
 	return nil
 }
 
-func (r *Runner) createBuckets() error {
-	return r.db.Update(func(tx *bbolt.Tx) error {
-		for _, name := range [][]byte{torrentsBucket} {
-			_, err := tx.CreateBucketIfNotExists(name)
-			if err != nil {
-				return err
+func (r *Runner) feed(job JobConfig) error {
+	if job.FeedOptions.URL == "" {
+		return fmt.Errorf("feed job does not have a URL")
+	}
+	var (
+		err          error
+		parser       = gofeed.NewParser()
+		feed, exists = r.feedCache[job.FeedOptions.URL]
+	)
+	if !exists {
+		feed, err = parser.ParseURL(job.FeedOptions.URL)
+		if err != nil {
+			return err
+		}
+		r.feedCache[job.FeedOptions.URL] = feed
+	}
+	for _, item := range feed.Items {
+		if item.Link == "" {
+			log.Printf("[*] %s item does not have a Link, skipping", job.FeedOptions.URL)
+		}
+		// if we enabled storage, check if we already downloaded it
+		if r.db != nil {
+			// item.GUID
+			var stored StoredTorrentInfo
+			err = r.db.FindOne(&stored, bolthold.Where("FeedGUID").Eq(item.GUID).Index("FeedGUID"))
+			if err == bolthold.ErrNotFound {
+				if !feedItemMatches(*item, job.FeedOptions.Match) {
+					continue
+				}
+			} else if err != nil {
+				return fmt.Errorf("error checking if %s is downloaded: %+v", item.GUID, err)
+			} else {
+				// already exists or item does not match
+				continue
 			}
 		}
-		return nil
-	})
+		if r.DryRun {
+			log.Printf("DRY RUN: would add feed item: %s (%s)", item.Title, item.Link)
+			continue
+		}
+		torrent, err := r.client.TorrentAdd(
+			&transmissionrpc.TorrentAddPayload{
+				Filename: &item.Link,
+			},
+		)
+		if err != nil {
+			return fmt.Errorf("unable to add torrent from feed item %s: %+v", item.GUID, err)
+		}
+		var (
+			transTorrent = TransmissionTorrent{
+				ID:         *torrent.ID,
+				Name:       *torrent.Name,
+				HashString: *torrent.HashString,
+			}
+			stored = transTorrent.GetOrCreateStored()
+		)
+		stored.FeedGUID = item.GUID
+		if job.FeedOptions.Tag != "" {
+			stored.Tags = append(stored.Tags, job.FeedOptions.Tag)
+		}
+		r.db.Upsert(stored.ID, stored)
+	}
+	return nil
 }
 
 func (r *Runner) storeTorrent(torrent *TransmissionTorrent) error {
-	key := make([]byte, 8)
-	binary.PutVarint(key, torrent.ID)
-	return r.db.Update(func(tx *bbolt.Tx) error {
-		var (
-			bucket = tx.Bucket(torrentsBucket)
-			buf    = &bytes.Buffer{}
-			enc    = gob.NewEncoder(buf)
-		)
-		enc.Encode(torrent.MarshalMap())
-		return bucket.Put(key, buf.Bytes())
-	})
+	if torrent.StoredTorrentInfo == nil {
+		return nil
+	}
+	return r.db.Upsert(torrent.ID, torrent.StoredTorrentInfo)
 }
 
 func (r *Runner) loadTorrentStates() error {
-	return r.db.View(func(tx *bbolt.Tx) error {
-		var (
-			bucket = tx.Bucket(torrentsBucket)
-			cursor = bucket.Cursor()
-		)
-		for key, value := cursor.First(); key != nil; key, value = cursor.Next() {
-			torrentID, err := binary.ReadVarint(bytes.NewBuffer(key))
-			if err != nil {
-				return err
-			}
-			var data map[string]interface{}
-			err = gob.NewDecoder(bytes.NewBuffer(value)).Decode(&data)
-			if err != nil {
-				return nil
-			}
-			torrent := r.allTorrents[torrentID]
-			err = torrent.UnmarshalMap(data)
-			if err != nil {
-				return err
-			}
+	var toRemove []int64
+	err := r.db.ForEach(nil, func(info *StoredTorrentInfo) error {
+		_, exists := r.allTorrents[info.ID]
+		if !exists && info.SafeToPrune() {
+			toRemove = append(toRemove, info.ID)
 		}
+		r.allTorrents[info.ID].StoredTorrentInfo = info
 		return nil
 	})
+	for id, torrent := range r.allTorrents {
+		if torrent.StoredTorrentInfo == nil {
+			r.allTorrents[id].GetOrCreateStored()
+		}
+	}
+	return err
 }

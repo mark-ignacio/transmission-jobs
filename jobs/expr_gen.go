@@ -83,9 +83,10 @@ type TransmissionTorrent struct {
 	WebSeeds                []string
 	WebSeedsSendingToUs     int64
 
-	// for internal use
+	*StoredTorrentInfo
+
+	// for internal, ephemeral use
 	sonarrDropPaths map[string]bool
-	Tags            []string
 }
 
 // ToTransmissionTorrent converts the library struct to our generated struct.

@@ -53,20 +53,30 @@ func (t TransmissionTorrent) AnnounceHostnames() (hostnames []string) {
 	return
 }
 
+// GetOrCreateStored gets or creates StoredTorrent info.
+func (t *TransmissionTorrent) GetOrCreateStored() *StoredTorrentInfo {
+	if t.StoredTorrentInfo == nil {
+		t.StoredTorrentInfo = &StoredTorrentInfo{ID: t.ID}
+	}
+	return t.StoredTorrentInfo
+}
+
+// StoredTorrentInfo contains TransmissionTorrent info saved with bolthold. Usually embedded inside of TransmissionTorrent.
+type StoredTorrentInfo struct {
+	ID       int64  `boltholdKey:"ID"`
+	FeedGUID string `boltholdIndex:"FeedGUID"`
+	Removed  bool
+	Tags     []string
+}
+
+// SafeToPrune returns whether a piece of stored torrent state is worth keeping around.
+func (s StoredTorrentInfo) SafeToPrune() bool {
+	if s.Removed && s.FeedGUID != "" {
+		return false
+	}
+	return true
+}
+
 func init() {
 	torrentExprEnv = expr.Env(&torrentConditionInput{})
-}
-
-// MarshalMap exists for general storage.
-func (t TransmissionTorrent) MarshalMap() map[string]interface{} {
-	return map[string]interface{}{
-		"ID":   t.ID,
-		"Tags": t.Tags,
-	}
-}
-
-// UnmarshalMap does the opposite of MarshalMap
-func (t *TransmissionTorrent) UnmarshalMap(data map[string]interface{}) error {
-	t.Tags = data["Tags"].([]string)
-	return nil
 }

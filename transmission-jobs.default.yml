@@ -8,13 +8,22 @@ transmission:
 #   api_key: f00
 
 # jobs: 
-# - name: tag Fedora, Debian trackers as linux
-#   tag:
-#     name: linux
-#     condition: |-
-#       any(Torrent.AnnounceHostnames(), {# in ["torrent.fedoraproject.org", "bttracker.debian.org"]})
+#   - name: tag Fedora, Debian trackers as linux
+#     tag:
+#       name: linux
+#       condition: |-
+#         any(Torrent.AnnounceHostnames(), {# in ["torrent.fedoraproject.org", "bttracker.debian.org"]})
 #   - name: some optional name
 #     remove:
 #       condition: "linux" not in Torrent.Tags && Torrent.Status.String() == "seeding" && Torrent.UploadRatio >= 10.0
 #       delete_local: true
+#   - name: pfSense amd64 ISOs
+#     feed:
+#       url: https://distrowatch.com/news/torrents.xml
+#       match:
+#         field: title
+#         regexp: pfSense\-.+?\-amd64
+#   - name: all Distrowatch ISOs
+#     feed:
+#       url: https://distrowatch.com/news/torrents.xml
 jobs: []

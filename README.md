@@ -11,9 +11,12 @@ Runs every 5 minutes by default.
 
 * [x] Condition evaluation
 * [x] Tag system via jobs
+* [x] RSS/Atom feed ingestion with filtering
 * [x] Sonarr [History](https://github.com/Sonarr/Sonarr/wiki/History) integration
 * [x] Actions
   * [x] Remove (and delete local data)
+
+`transmission-jobs.default.yml` contains examples of feature usage.
 
 ### Conditions
 
@@ -55,12 +58,30 @@ exit status 1
 
 See the expr [Language Definition](https://github.com/antonmedv/expr/blob/master/docs/Language-Definition.md) for details.
 
+### RSS and Atom feeds
+
+RSS and Atom feeds are downloaded and processed each time transmission-jobs runs. If [stateful storage](#stateful-storage) is enabled, feed items are only created once.
+
+You can optionally specify `feed.match`, which allows you to run an [RE2-compatible regular expression](https://github.com/google/re2/wiki/Syntax) against fields in a feed item. The full list of supported fields are `string` fields in [`gofeed.Item`](https://pkg.go.dev/github.com/mmcdole/gofeed?tab=doc#Item).
+
+```yml
+jobs:
+  - name: feed pfSense amd64 ISOs
+    feed:
+      url: https://distrowatch.com/news/torrents.xml
+      match:
+        field: title
+        regexp: pfSense\-.+?\-amd64
+```
+
 ### Stateful storage
 
 If `database` is configured, transmission-jobs changes its default stateless behavior to stateful. Other sections go into detail about what this means, but the affected job types are:
 
-* `tag` - tags are stored when evaluated, which is generally useless
-* TK: RSS/Atom feeds
+* `tag` - tags are stored after evaluated, which is generally useless
+* `feed` - feed-added items are stored forever so that torrents are not added multiple times
+
+Resetting storage is easy - just delete the file specified at `database` between transmission-jobs runs. 
 
 ### Sonarr import status
 
