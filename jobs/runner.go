@@ -80,11 +80,13 @@ func (r *Runner) Run(ctx context.Context) (err error) {
 			return fmt.Errorf("error running job '%s': %+v", jobConfig.Name, err)
 		}
 	}
-	// store torrent data
-	for _, torrent := range r.allTorrents {
-		err = r.storeTorrent(torrent)
-		if err != nil {
-			return fmt.Errorf("error storing torrent: %+v", err)
+	if r.db != nil {
+		// store torrent data
+		for _, torrent := range r.allTorrents {
+			err = r.storeTorrent(torrent)
+			if err != nil {
+				return fmt.Errorf("error storing torrent: %+v", err)
+			}
 		}
 	}
 	return
@@ -197,7 +199,7 @@ func (r *Runner) remove(job JobConfig) error {
 		for _, id := range removeIDs {
 			storedInfo := r.allTorrents[id].StoredTorrentInfo
 			storedInfo.Removed = true
-			if storedInfo.SafeToPrune() {
+			if r.db != nil && storedInfo.SafeToPrune() {
 				if r.DryRun {
 					log.Printf("DRY RUN: would prune info")
 				} else if err := r.db.Delete(id, storedInfo); err != nil {
@@ -304,7 +306,9 @@ func (r *Runner) feed(job JobConfig) error {
 		if job.FeedOptions.Tag != "" {
 			stored.Tags = append(stored.Tags, job.FeedOptions.Tag)
 		}
-		r.db.Upsert(stored.ID, stored)
+		if r.db != nil {
+			r.db.Upsert(stored.ID, stored)
+		}
 	}
 	return nil
 }
