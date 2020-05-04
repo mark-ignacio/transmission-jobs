@@ -19,7 +19,7 @@ type torrentConditionInput struct {
 // Imported returns whether all downloaded files were imported
 func (t TransmissionTorrent) Imported() bool {
 	if t.sonarrDropPaths == nil {
-		panic("runtime error: unable to use Imported() without loading imported file paths")
+		panic("runtime error: unable to use Imported() without loading imported Sonarr file paths")
 	}
 	if len(t.Files) == 0 {
 		return false
