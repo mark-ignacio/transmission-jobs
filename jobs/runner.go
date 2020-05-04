@@ -44,6 +44,7 @@ func (r *Runner) Run(ctx context.Context) (err error) {
 		log.Printf("[*] Using database @ %s", r.Config.DatabasePath)
 		defer r.db.Close()
 	}
+	r.allTorrents = make(map[int64]*TransmissionTorrent)
 	r.feedCache = make(map[string]*gofeed.Feed)
 	// validate jobs before we do any network stuff
 	if err = r.validateJobs(); err != nil {
@@ -114,7 +115,6 @@ func (r *Runner) fetchAllTorrents() error {
 	if err != nil {
 		return fmt.Errorf("error getting all torrents: %+v", err)
 	}
-	r.allTorrents = make(map[int64]*TransmissionTorrent, len(allTorrents))
 	for i := range allTorrents {
 		torrent := ToTransmissionTorrent(*allTorrents[i], r.sonarrDropPaths)
 		r.allTorrents[torrent.ID] = &torrent
@@ -324,10 +324,11 @@ func (r *Runner) loadTorrentStates() error {
 	var toRemove []int64
 	err := r.db.ForEach(nil, func(info *StoredTorrentInfo) error {
 		_, exists := r.allTorrents[info.ID]
-		if !exists && info.SafeToPrune() {
+		if exists {
+			r.allTorrents[info.ID].StoredTorrentInfo = info
+		} else if info.SafeToPrune() {
 			toRemove = append(toRemove, info.ID)
 		}
-		r.allTorrents[info.ID].StoredTorrentInfo = info
 		return nil
 	})
 	for id, torrent := range r.allTorrents {
