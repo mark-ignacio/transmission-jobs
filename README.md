@@ -97,3 +97,18 @@ jobs:
       condition: Torrent.Imported() && Torrent.Status.String() == "seeding" && Torrent.UploadRatio >= 10.0
       delete_local: true
 ```
+
+### Location 
+
+Non-Sonarr users can specify a location for downloads instead - in Transmission RPC land, this is the `download-dir`  field.
+
+```yml
+jobs:
+  - name: feed pfSense amd64 ISOs
+    location: /mnt/downloads/
+    feed:
+      url: https://distrowatch.com/news/torrents.xml
+      match:
+        field: title
+        regexp: pfSense\-.+?\-amd64
+```

@@ -286,9 +286,15 @@ func (r *Runner) feed(job JobConfig) error {
 			log.Printf("DRY RUN: would add feed item: %s (%s)", item.Title, item.Link)
 			continue
 		}
+		var downloadDir *string
+		if job.Location != "" {
+			downloadDir = &job.Location
+		}
+		log.Printf("[*] Adding %s", item.Title)
 		torrent, err := r.client.TorrentAdd(
 			&transmissionrpc.TorrentAddPayload{
-				Filename: &item.Link,
+				Filename:    &item.Link,
+				DownloadDir: downloadDir,
 			},
 		)
 		if err != nil {

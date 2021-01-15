@@ -33,6 +33,7 @@ type TransmissionSettings struct {
 // JobConfig describes jobs to run. The presence of each 'SomethingOptions' field denotes the action.
 type JobConfig struct {
 	Name          string
+	Location      string
 	RemoveOptions *RemoveOptions `mapstructure:"remove"`
 	TagOptions    *TagOptions    `mapstructure:"tag"`
 	FeedOptions   *FeedOptions   `mapstructure:"feed"`

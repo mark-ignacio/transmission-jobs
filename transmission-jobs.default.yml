@@ -18,6 +18,7 @@ transmission:
 #       condition: "linux" not in Torrent.Tags && Torrent.Status.String() == "seeding" && Torrent.UploadRatio >= 10.0
 #       delete_local: true
 #   - name: pfSense amd64 ISOs
+#     location: /mnt/downloads/
 #     feed:
 #       url: https://distrowatch.com/news/torrents.xml
 #       match:
