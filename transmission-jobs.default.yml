@@ -19,6 +19,7 @@ transmission:
 #       delete_local: true
 #   - name: pfSense amd64 ISOs
 #     location: /mnt/downloads/
+#     seed_ratio: 2.5
 #     feed:
 #       url: https://distrowatch.com/news/torrents.xml
 #       match:

@@ -16,9 +16,15 @@ import (
 )
 
 var (
-	feedGUIDBucket = []byte("feedGUIDs")
-	torrentsBucket = []byte("torrents")
+	feedGUIDBucket      = []byte("feedGUIDs")
+	torrentsBucket      = []byte("torrents")
+	seedRatioModeCustom *transmissionrpc.SeedRatioMode
 )
+
+func init() {
+	x := transmissionrpc.SeedRatioModeCustom
+	seedRatioModeCustom = &x
+}
 
 // Runner is what actually runs all of the jobs
 type Runner struct {
@@ -299,6 +305,16 @@ func (r *Runner) feed(job JobConfig) error {
 		)
 		if err != nil {
 			return fmt.Errorf("unable to add torrent from feed item %s: %+v", item.GUID, err)
+		}
+		if job.SeedRatio > 0 {
+			err = r.client.TorrentSet(&transmissionrpc.TorrentSetPayload{
+				IDs:            []int64{*torrent.ID},
+				SeedRatioLimit: &job.SeedRatio,
+				SeedRatioMode:  seedRatioModeCustom,
+			})
+			if err != nil {
+				return fmt.Errorf("error setting seed ratio mode for feed item %s: %+v", item.GUID, err)
+			}
 		}
 		var (
 			transTorrent = TransmissionTorrent{

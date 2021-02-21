@@ -34,6 +34,7 @@ type TransmissionSettings struct {
 type JobConfig struct {
 	Name          string
 	Location      string
+	SeedRatio     float64        `mapstructure:"seed_ratio"`
 	RemoveOptions *RemoveOptions `mapstructure:"remove"`
 	TagOptions    *TagOptions    `mapstructure:"tag"`
 	FeedOptions   *FeedOptions   `mapstructure:"feed"`

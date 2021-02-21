@@ -23,3 +23,17 @@ deb: build
 		--after-install .dist/after-install.sh \
 		--config-files etc/transmission-jobs.yml \
 		.
+	
+.PHONY: rpm
+rpm: build
+	rm -f *.rpm
+	fpm -s dir \
+		-t rpm \
+		-C .build \
+		--name transmission-jobs \
+		--version '$(NOWISH)' \
+		--maintainer 'Mark Ignacio <mark@ignacio.io>' \
+		--before-install .dist/before-install.sh \
+		--after-install .dist/after-install.sh \
+		--config-files etc/transmission-jobs.yml \
+		.
