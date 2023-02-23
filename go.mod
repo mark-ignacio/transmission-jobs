@@ -24,8 +24,6 @@ require (
 	github.com/spf13/viper v1.7.1
 	github.com/timshannon/bolthold v0.0.0-20200817130212-4a25ab140645
 	go.etcd.io/bbolt v1.3.5 // indirect
-	golang.org/x/net v0.0.0-20210119194325-5f4716e94777 // indirect
-	golang.org/x/sys v0.0.0-20210217105451-b926d437f341 // indirect
-	golang.org/x/text v0.3.5 // indirect
+	golang.org/x/text v0.3.8 // indirect
 	gopkg.in/ini.v1 v1.62.0 // indirect
 )
